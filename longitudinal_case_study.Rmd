@@ -239,7 +239,7 @@ anova(lmm.5, L = rbind(c(0,1,0,0,-1,0,0,0,0,0,0,0),c(0,0,0,0,0,0,0,1,0,0,-1,0)))
 #If we compare the mean difference between the two treatment methods, we conduct the F-test and the results reveal that the differences between the mean differences of the two levels are statistically significant between the two treatment methods.
 
 ```
-
+##linear mixed model diagnostics
 ```{r}
 # Residuals vs Fitted values
 plot(lmm.5, resid(., type = "n") ~ fitted(.), 
@@ -302,6 +302,7 @@ getVarCov(model.7)
 anova(model.1, model.6)
 
 ```
+##marginal model diagnostics
 ```{r}
 # Residuals vs Fitted values
 plot(model.1, resid(., type = "n") ~ fitted(.), 
@@ -317,5 +318,6 @@ plot(model.1, resid(., type = "n") ~ fitted(.) | Treat.f,
 ```{r}
 qqnorm(model.1, ~ resid(., type = "p"), abline = c(0,1))
 
+#At the first sight, the marginal model of model.1 seems fitting better than our linear mixed effects model for the reason that its standardized residual plots and qqplot both show stronger linearity. However, the marginal model might have the problem of underfitting, which can be observed from the standardized residuals plots with spartial vertical dots. 
 ```
 
