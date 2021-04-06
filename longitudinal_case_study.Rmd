@@ -1,0 +1,321 @@
+---
+title: "longitudinal_case_study"
+author: "Bella Shao"
+date: "3/18/2021"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r}
+library(lattice)
+library(nlme)
+library(lme4)
+library(learnr)
+```
+
+#The data set
+```{r}
+CarEff <- read.table("CardiacEffectsData-2021.txt", header = TRUE,sep = " ")
+
+CarEff
+```
+```{r}
+hist(CarEff$nMV,17,probability = TRUE, col = "light blue",xlab = "nMV", main = "Distribution of nMV")
+hist(log(CarEff$nMV), "fd", probability = TRUE, col = "light blue", xlab = "lognMV", main = "Distribution of lognMV")
+lines(density(log(CarEff.c$nMV)))
+#by checking the distribution of the response variable, the nMV is skewed to the right, thus we take the log of nMV, which is more symmetric as  normal distribution. 
+```
+
+
+
+```{r}
+CarEff$Treat.f <- factor(CarEff$Treat, levels = c("A","B"))
+CarEff$Treatment.arm <- factor(CarEff$Treatment.arm, levels = c("A-B","B-A"))
+CarEff$Day.f <- factor(CarEff$Day, levels = c(1,2))
+CarEff$Level.f <- factor(CarEff$Level, levels = 1:6)
+CarEff$lognMV <- log(CarEff$nMV)
+CarEff
+```
+
+```{r}
+with(CarEff, tapply(nMV, list(Day.f, Treatment.arm), mean, na.rm = TRUE))
+with(CarEff, tapply(nMV, list(Day.f, Treatment.arm), var, na.rm = TRUE))
+
+#Each patient is randomly assigned to two types of TEA treatments A and B in two different days with two different treatment orders, in other words, one patient is randomly assigned to treatment A in day 1 and treatment B in day 2 or vice versa. We output the means and variances of the measurements of the annular velocity of MV(nMV) for patients with two different treatment orders in two different days. From the mean table(table 1), it is obvious that the mean of nMV increases from day 1 to day 2 with treatment order A-B, and it decreases to the baseline from day 1 to day 2 with the other treatment order B-A. The same pattern also applies to the variances of nMV(table 2). This pattern suggests that the patients are randomly assigned at the baseline level, and treatment A and B might have different effects on the annular velocity of the MV. 
+
+```
+```{r}
+#with(CarEff, tapply(nMV,list(Treatment.arm,Level.f), mean, na.rm = TRUE))
+with(CarEff, tapply(nMV,list(Treat.f,Level.f), mean, na.rm = TRUE))
+with(CarEff, tapply(nMV,list(Treat.f,Level.f), var, na.rm = TRUE))
+#Next we output the means and variances of nMV of treatment A and B for each of the 6 exercise levels. The effects of treatment A and B show similar trend that the measurements of MV first increase from exercise level 1 and then gradually decrease to the baseline level at exercise level 6. Moreover, the effects of treatment B are generally more pronounced for each of the exercise level than the effects of treatment A. 
+```
+
+```{r}
+#The completers
+CarEff.copy <- CarEff
+CarEff.copy$ID <- as.numeric(CarEff.copy$ID)
+CarEff.c <- CarEff.copy[CarEff.copy$ID !=2 & CarEff.copy$ID != 3,]
+CarEff.c
+```
+```{r}
+xyplot(nMV ~ Day, groups = ID, data = CarEff.c, type = "l")
+```
+```{r}
+xyplot(nMV ~ Day|Treatment.arm, groups = ID, data = CarEff.c, type = "l")
+
+xyplot(nMV ~ Day|Treatment.arm, groups = ID, data = CarEff.c, type = "l",
+      panel = function(x, y) {
+            panel.average(x, y, horizontal = FALSE, col = "green")
+       } )
+
+xyplot(lognMV ~ Day|Treatment.arm, groups = ID, data = CarEff.c, type = "l",
+      panel = function(x, y) {
+            panel.average(x, y, horizontal = FALSE, col = "green")
+       } )
+#To further investigate whether there are "carry-over effects" of the two treatment methods with passing days, we make spaghetti plots of nMV against the two days for each treatment groups. The plots show that with days passing, the mean measurements of annular velocity of MV increase with treatment order A-B, but decrease with treatment order B-A. 
+```
+```{r}
+xyplot(nMV ~ Level, groups = ID, data = CarEff.c, type = "l")
+```
+```{r}
+xyplot(nMV ~ Level|Treat.f, groups = ID, data = CarEff.c, type = "l",panel = function(x,y){panel.average(x,y, horizontal = FALSE, col = "orange")})
+xyplot(nMV ~ Level|Treat.f*Day.f, groups = ID, data = CarEff.c, type = "l", panel = function(x,y){panel.average(x,y, horizontal = FALSE, col = "blue")})
+#We make the same plots for the measurements of annular velocity of MV against exercise levels within each treatment methods. For this situation, we use the factor variable Treat.f (A and B) instead of the Treatment.arm for the reason that the time effects(Day) are nested within the treatment methods when comparing the mean measurements of annular velocity of MV for each exercise levels between two treatment methods A and B.The plots clearly show that for each treatment method, the mean nMV first goes up and then gradually returns to its baseline level, and the treatment effect of method A is slightly higher than that of treatment method B.
+#The plotted lines also reveal that there might be non-linear relationships between nMV and exercise level under each treatment methods.
+
+#The second plot shows the mean trends of nMV for exercise levels under two different treatment methods in day 1 and day 2 respectively. We can observe that the mean trends vary slightly under each treatment method in two different days.
+```
+```{r}
+#xyplot(nMV ~ Treat.f|Level.f, groups = ID, data = CarEff.c, type = "l", panel = function(x,y){panel.average(x,y, horizontal = FALSE, col = "blue")})
+
+#xyplot(nMV ~ Treat.f|Level.f, groups = ID, data = CarEff.c, type = "l")
+```
+
+
+
+
+
+
+```{r}
+#We perform t-test to validate what we have explored from the previous tables and plots. Firstly, we test if there is indeed difference between the two treatment methods.For each patient, the difference between treatment effects of A and B cancels out the time effects because each patient only takes one treatment method in one day.
+
+#Therefore we perform a paired t-test by using the Treat.f factor. Based on the results, the two treatment effects are indeed different. And the mean of their treatment effect difference is 0.20.
+t.test(log(nMV) ~ Treat.f, data = CarEff.c, paired = TRUE)
+```
+```{r}
+#To test whether there is time effect,we perform the same paired t-test. The p-value equals to 0.5815 indicates that there is no significant time effect for the measurement of annular velocity of MV. 
+t.test(log(nMV) ~ Day.f, data = CarEff.c, paired = TRUE)
+```
+```{r}
+t.test(log(nMV) ~ Treat.f, data = CarEff.c, 
+       subset = which(CarEff.c$Day.f == 1), paired = FALSE)
+
+t.test(log(nMV) ~ Treat.f, data = CarEff.c, 
+       subset = which(CarEff.c$Day.f == 2), paired = FALSE)
+#Next we estimate the treatment effect for each day separately. From the results we observe that the treatment effect is statistically different for each day seperately.
+```
+```{r}
+#To estimate the carry over effects, for each day, we compare the measurements of annular velocity of MV between the two treatment methods.From the results we observe that the p-value is 0.747 which indicates that the carry-over effect is not statistically significant.
+nMVdiff.D1 <- CarEff.c[CarEff.c$Day.f==1 & CarEff.c$Treat.f == "A", "lognMV"] - CarEff.c[CarEff.c$Day.f==1 & CarEff.c$Treat.f == "B", "lognMV"]
+
+nMVdiff.D2 <- CarEff.c[CarEff.c$Day.f==2 & CarEff.c$Treat.f == "A", "lognMV"] - CarEff.c[CarEff.c$Day.f==2 & CarEff.c$Treat.f == "B", "lognMV"]
+
+t.test(nMVdiff.D2 - nMVdiff.D1)
+
+#Since we only consider the completers in this dataset, all the previous t-test analyses cannot be applied to patient 2 and patient 3 who have missing values in nMV. Thus the dataset is not balanced and the methods that can deal with unbalanced data are needed. 
+```
+
+## Model building
+```{r}
+CarEff
+```
+
+```{r}
+#Based on the exploratory data analysis from the first part, a linear mixed effects model is suitable for our analysis of the research questions. The reasons to fit a linear mixed effects model for our dataset are twofolds. Firstly, regarding the data structure, each patient is measured at six points (exercise levels) a day with one treatment method, which means that there are correlations between measurements for one patient. This is between-subject correlation. All the patients are independent from each other, thus their within-subject variances are also independent from each other. Secondly, our dataset is not balanced. Some measurements are not recorded at some points due to low quality of the measurements. In this case, the missing values are conditional on the observed measurements. Hence it is reasonable to assume the missed measurements are missing at random (MAR). And linear mixed effects models, which are based on log likelihood estimations, can produce relatively unbiased results for our unbalanced data structure. 
+
+#According to our research questions, we would like to find out whether there are treatment effects with days passing by on the measurements of annular velocity of MV, as well as whether the treatment methods with different levels of exercises have effects on the measurements of annular velocity of MV in two different days. We first fit our model with random intercept only. And then we fit a model with all the same fixed effects and covariates but with different variance covariance parameters. This can be achieved by introducing another random effect slope of the two different days. Since these two models are nested, thus we can conduct a loglikelihood ratio test to specify which model fits our data set better. 
+
+lmm.1 <- lme(log(nMV) ~  (Day.f+ Level.f + Day.f*Level.f)*Treat.f, random = ~1|ID, na.action = na.exclude, method = "REML", data = CarEff)
+
+summary(lmm.1)
+getVarCov(lmm.1, "marginal", individuals = 4)
+getVarCov(lmm.1, "random.effects")
+getVarCov(lmm.1, "conditional")
+
+lmm.2 <- lme(log(nMV) ~ Day.f*Level.f*Treat.f, random = ~Day.f|ID, na.action = na.exclude, method = "REML", data = CarEff)
+summary(lmm.2)
+getVarCov(lmm.2, "marginal", individuals = 5)
+getVarCov(lmm.2, "conditional")
+
+#By LRT, there is a boundary problem for the distribution of variance-covariance parameters.Thus our test statistics should be like 0.5X^2 + 0.5X^2 with degrees of freedom of 1 and 2 respectively. The p-value of LRT test results is 0.00074, which is obviously smaller than 5%. Moreover, based on the AIC and BIC criteria, model with random slope(lmm.2) has smaller parameters compared to the first model with only random intercept(lmm.1). Therefore, we prefer model lmm.2.
+
+anova(lmm.2,lmm.1)
+
+L.ratio <- anova(lmm.2,lmm.1)$L.Ratio[2]
+0.5*pchisq(L.ratio, df=1, lower.tail = FALSE) + 0.5*pchisq(L.ratio, df=2, lower.tail = FALSE)
+
+``` 
+```{r}
+#At the next step, we specify the fixed effects in our model. From the results of model lmm.2, we could observe that each p-value of the interaction term Day.f:Level.f:Treat.f are all bigger that 0.05.To verify whether this interaction is significant as a whole, we conduct a F-test. According to the results, the p-value for Day.f:Level.f:Treat.f is 0.7887, which is indeed bigger than 0.05. Hence we can conclude that there are no significant effects between two treatment methods among the six exercise levels within the two days. The same situation also applies to the interaction Day.f:Level.f with a p-value of 0.1759. We form a model lmm.3 without the interaction terms.
+anova(lmm.2)
+lmm.3 <- lme(log(nMV) ~  Day.f+ Level.f + Treat.f + Day.f:Treat.f + Level.f:Treat.f, random = ~Day.f|ID, na.action = na.exclude, method = "REML", data=CarEff)
+
+summary(lmm.3)
+getVarCov(lmm.3,"marginal",individual = 4)
+getVarCov(lmm.3,"conditional")
+anova(lmm.3)
+#According to the results from model lmm.3, we can observe the time effects (Day.f) are not statistically significant. The mean effects between the two treatment methods within the two days are not statistically significant as well.This outcome is complied with our previous analysis. Thus we can exclude the interaction Day.f:Treat.f from our model.
+```
+```{r}
+#Since there is no time effects in our model, and Day.f:Treat.f are also insignificant, we refit our model without any time effects. The new models lmm.4 and lmm.5 are refitted mixed effects models with random intercepts and random slopes of treatment respectively. As before, we conduct a LRT test to decide which model fits better to our dataset. The test statistics follow a 0.5X^2 + 0.5X^2 distribution with 1 and 2 degrees of freedom.
+lmm.4 <- lme(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, random = ~1|ID, na.action = na.exclude, method = "REML", data=CarEff)
+lmm.5 <- lme(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, random = ~Treat.f|ID, na.action = na.exclude, method = "REML", data=CarEff)
+getVarCov(lmm.4,"marginal", individual = 4)
+getVarCov(lmm.4, "conditional")
+
+getVarCov(lmm.5,"marginal", individual = 4)
+getVarCov(lmm.5, "conditional")
+anova(lmm.5,lmm.4)
+lrt <- anova(lmm.5,lmm.4)$L.Ratio[2]
+0.5*pchisq(lrt, 1, lower.tail = FALSE) + 0.5*pchisq(lrt, 2, lower.tail = FALSE)
+anova(lmm.5)
+#Based on the outcome of LRT, we can decide that model lmm.5 fits the dataset better than model lmm.4. Hence we choose model lmm.5 to further proceed our analysis. 
+#Model lmm.5 clearly indicates that the interaction Level.f:Treat.f is statistically significant at 5% level. This means the mean measurements of annular velocity of MV across 6 different exercise levels are different between the two treatment methods.
+
+vc5 <- vcov(lmm.5)
+
+level2.A_level3.A <- exp(summary(lmm.5)$tTable["Level.f2","Value"] - summary(lmm.5)$tTable["Level.f3","Value"])
+level2.A_level5.A <- exp(summary(lmm.5)$tTable["Level.f2","Value"]- summary(lmm.5)$tTable["Level.f5","Value"])
+level2.A_level3.A_upper <- level2.A_level3.A + 1.96*sqrt((vc5["Level.f2","Level.f2"] + vc5["Level.f3","Level.f3"]-2*vc5["Level.f2","Level.f3"]))
+level2.A_level3.A_lower <- level2.A_level3.A - 1.96*sqrt((vc5["Level.f2","Level.f2"] + vc5["Level.f3","Level.f3"]-2*vc5["Level.f2","Level.f3"]))
+
+level2.A_level5.A_upper <- level2.A_level5.A + 1.96*sqrt((vc5["Level.f2","Level.f2"] + vc5["Level.f5","Level.f5"]-2*vc5["Level.f2","Level.f5"]))
+level2.A_level5.A_lower <- level2.A_level5.A - 1.96*sqrt((vc5["Level.f2","Level.f2"] + vc5["Level.f5","Level.f5"]-2*vc5["Level.f2","Level.f5"]))
+
+level2.B_level3.B <- exp(summary(lmm.5)$tTable["Level.f2:Treat.fB","Value"] - summary(lmm.5)$tTable["Level.f3:Treat.fB","Value"])
+level2.B_level5.B <- exp(summary(lmm.5)$tTable["Level.f2:Treat.fB","Value"] - summary(lmm.5)$tTable["Level.f5:Treat.fB","Value"])
+
+level2.B_level3.B_upper <- level2.B_level3.B + 1.96*sqrt((vc5["Level.f2:Treat.fB","Level.f2:Treat.fB"] + vc5["Level.f3:Treat.fB","Level.f3:Treat.fB"]-2*vc5["Level.f2:Treat.fB","Level.f3:Treat.fB"]))
+level2.B_level3.B_lower <- level2.B_level3.B - 1.96*sqrt((vc5["Level.f2:Treat.fB","Level.f2:Treat.fB"] + vc5["Level.f3:Treat.fB","Level.f3:Treat.fB"]-2*vc5["Level.f2:Treat.fB","Level.f3:Treat.fB"]))
+
+level2.B_level5.B_upper <- level2.B_level5.B + 1.96*sqrt((vc5["Level.f2:Treat.fB","Level.f2:Treat.fB"] + vc5["Level.f5:Treat.fB","Level.f5:Treat.fB"]-2*vc5["Level.f2:Treat.fB","Level.f5:Treat.fB"]))
+level2.B_level5.B_lower <- level2.B_level5.B - 1.96*sqrt((vc5["Level.f2:Treat.fB","Level.f2:Treat.fB"] + vc5["Level.f5:Treat.fB","Level.f5:Treat.fB"]-2*vc5["Level.f2:Treat.fB","Level.f5:Treat.fB"]))
+
+dtA <- data.frame(TreatA.diff = c(level2.A_level3.A,level2.A_level5.A),
+                  Upper = c(level2.A_level3.A_upper,level2.A_level5.A_upper),
+                  Lower = c(level2.A_level3.A_lower,level2.A_level5.A_lower),
+                  row.names = c("level 2-3", "level 2-5"))
+
+dtB <- data.frame(TreatB.diff = c(level2.B_level3.B,level2.B_level5.B),
+                  Upper = c(level2.B_level3.B_upper,level2.B_level5.B_upper),
+                  Lower = c(level2.B_level3.B_lower,level2.B_level5.B_lower),
+                  row.names = c("level 2-3", "level 2-5"))
+
+
+dtA
+dtB
+#In order to calculate the mean differences and their confidence intervals between exercise level 2-3 and level 2-5 for each treatment method, we need to extract the variance covariance matrix for each combination of parameters. In addition, since we use log(nMV) as our response variable, we have to transfer the means back to the normal scale, which is exp(betas).The results are shown below in two tables.For treatment A, the mean difference between level 2 and 3 is higher than the mean difference between level 2 and level 5.On the other hand, the outcomes for treatment B are quite the opposite, where the mean difference between level 2 and 3 is smaller than the mean difference between level 2 and 5. Subsequently, we conduct F-test to verify whether these mean differences for the two treatment methods are statistially significant. 
+
+
+#library(emmeans)
+#library(tidyverse)
+#emmeans(lmm.5, pairwise ~ Level.f:Treat.f,type = "response")
+#emmeans(lmm.5, pairwise ~ Level.f:Treat.f,type = "response")$contrasts%>%confint()
+
+```
+
+```{r}
+summary(lmm.5)
+anova(lmm.5, L = rbind(c(0,1,-1,0,0,0,0,0,0,0,0,0),c(0,1,0,0,-1,0,0,0,0,0,0,0)))
+anova(lmm.5, L = rbind(c(0,0,0,0,0,0,0,1,-1,0,0,0),c(0,0,0,0,0,0,0,1,0,0,-1,0)))
+#Subsequently, we conduct F-test to verify whether these mean differences for the two treatment methods are statistically significant. Regarding to the results, we observe that the difference between the two means for treatment A is statistically significant at 5% level, whereas the difference between the two means for treatment B in not statistically significant. 
+
+anova(lmm.5, L = rbind(c(0,1,-1,0,0,0,0,0,0,0,0,0),c(0,0,0,0,0,0,0,1,-1,0,0,0)))
+anova(lmm.5, L = rbind(c(0,1,0,0,-1,0,0,0,0,0,0,0),c(0,0,0,0,0,0,0,1,0,0,-1,0)))
+#If we compare the mean difference between the two treatment methods, we conduct the F-test and the results reveal that the differences between the mean differences of the two levels are statistically significant between the two treatment methods.
+
+```
+
+```{r}
+# Residuals vs Fitted values
+plot(lmm.5, resid(., type = "n") ~ fitted(.), 
+     type = c("p", "smooth"), lwd = 3)
+```
+```{r}
+# Residuals vs Fitted values per group
+plot(lmm.5, resid(., type = "n") ~ fitted(.) | Treat.f, 
+     type = c("p", "smooth"), lwd = 3)
+```
+```{r}
+qqnorm(lmm.5, ~ resid(., type = "p"), abline = c(0, 1))
+
+#The linear mixed model diagnostic plots clearly show that our model lmm.5 fits well for our data. The standardized residuals spread relatively constant around zero, and the qqplot shows a rather good linearity for our model.
+```
+
+
+
+
+##Multivariant model(Marginal model)
+```{r}
+#In this section, we try to fit our data by using multivariate (marginal) models. Since from the previous linear mixed models we already know that there is no time effects in our model, and the variances are identical for each treatment group, hence we start building our models by using the same covariates as our linear mixed models. More specifically, we first try different correlation structures, such as compound symmetry, continuous AR1, linear spatial correlation, gaussian spatial correlation and exponential spatial correlation.For the variance, we assume that it is constant for each treatment method, just as what we assumed for linear mixed models.
+model.1 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corCompSymm(form = ~1|ID),
+    weights = varIdent(form = ~1|Treat.f),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.2 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corAR1(form = ~1|ID),
+     weights = varIdent(form = ~1|Treat.f),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.3 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corLin(form = ~1|ID),
+    weights = varIdent(form = ~1|Treat.f),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.4 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corGaus(form = ~1|ID),
+    weights = varIdent(form = ~1|Treat.f),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.5 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corExp(form = ~1|ID),
+    weights = varIdent(form = ~1|Treat.f),na.action = na.exclude, method = "REML", data = CarEff)
+
+anova(model.1, model.2, model.3, model.4, model.5)
+getVarCov(model.1)
+getVarCov(model.2)
+#Since these models are nested, we could use LRT test as well as AIC/BIC criteria to decide which model fits the best. Based on the results, we can observe that model.1 with compound symmetry correlation structure has the lowest AIC/BIC values. And its variance-covariance matrix is quite similar to the variance-covariance matrix from our linear mixed effects model.
+
+#Then we fit our model with the same variance for each subjects under each of the correlation structures. Since these models are also nested, we can conduct LRT and AIC/BIC criteria to decide which one fits the best. According to the results, model.6 with compound symmetry correlation structure seems to be the best fitting model. 
+
+#Next we compare model.1 and model.6 to decide which one fits better. These two models are also nested, thus we can again conduct LRT and AIC/BIC criteria. From the results, it is obvious that model.1 fits better with our data.
+model.6 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corCompSymm(form = ~1|ID),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.7 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corAR1(form = ~1|ID),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.8 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corLin(form = ~1|ID),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.9 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corGaus(form = ~1|ID),na.action = na.exclude, method = "REML", data = CarEff)
+
+model.10 <- gls(log(nMV) ~ Level.f + Treat.f + Level.f:Treat.f, correlation = corExp(form = ~1|ID),na.action = na.exclude, method = "REML", data = CarEff)
+
+anova(model.6, model.7, model.8, model.9, model.10)
+getVarCov(model.6)
+getVarCov(model.7)
+
+anova(model.1, model.6)
+
+```
+```{r}
+# Residuals vs Fitted values
+plot(model.1, resid(., type = "n") ~ fitted(.), 
+     type = c("p", "smooth"), lwd = 3)
+```
+```{r}
+# Residuals vs Fitted values per group
+plot(model.1, resid(., type = "n") ~ fitted(.) | Treat.f, 
+     type = c("p", "smooth"), lwd = 3)
+```
+
+
+```{r}
+qqnorm(model.1, ~ resid(., type = "p"), abline = c(0,1))
+
+```
+
